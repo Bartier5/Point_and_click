@@ -1,0 +1,11 @@
+# Python noise
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# venv — in case it ever ends up here
+venv/
+env/
+.venv/
+.env
