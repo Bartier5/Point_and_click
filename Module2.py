@@ -21,6 +21,42 @@ DETECT_JS = """
   const counts = {};
   const found = [];
 
+  const isStableId = id =>
+    /^[A-Za-z][A-Za-z0-9_-]{1,30}$/.test(id) && !/[0-9]{4,}/.test(id);
+
+  const countMatches = css => {
+    try { return document.querySelectorAll(css).length; }
+    catch (e) { return 0; }
+  };
+
+  const buildSelector = el => {
+    const tag = el.tagName.toLowerCase();
+    const testid = el.getAttribute("data-testid");
+    if (testid && !testid.includes('"'))
+      return {css: `[data-testid="${testid}"]`, stable: true};
+    if (el.id && isStableId(el.id))
+      return {css: "#" + CSS.escape(el.id), stable: true};
+    for (const a of ["aria-label", "placeholder", "name", "alt"]) {
+      const v = el.getAttribute(a);
+      if (v && v.length < 60 && !v.includes('"'))
+        return {css: `${tag}[${a}="${v}"]`, stable: true};
+    }
+    const path = [];
+    let node = el;
+    while (node && node !== document.body && path.length < 6) {
+      if (node !== el && node.id && isStableId(node.id)) {
+        path.unshift("#" + CSS.escape(node.id));
+        break;
+      }
+      const t = node.tagName.toLowerCase();
+      const same = [...node.parentElement.children]
+        .filter(c => c.tagName === node.tagName);
+      path.unshift(same.length > 1 ? `${t}:nth-of-type(${same.indexOf(node) + 1})` : t);
+      node = node.parentElement;
+    }
+    return {css: path.join(" > "), stable: false};
+  };
+
   const overlay = document.createElement("div");
   overlay.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;" +
                           "pointer-events:none;z-index:2147483647;";
@@ -72,8 +108,11 @@ DETECT_JS = """
     box.appendChild(label);
     overlay.appendChild(box);
 
+    const sel = buildSelector(el);
     found.push({n, kind, tag: el.tagName.toLowerCase(),
-                text: isImg ? (el.alt || el.src.slice(0, 40)) : text});
+                text: isImg ? (el.alt || el.src.slice(0, 40)) : text,
+                selector: sel.css, stable: sel.stable,
+                matches: countMatches(sel.css)});
   }
   return found;
 }
@@ -132,4 +171,5 @@ async def main():
     await dp.start_polling(bot)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
